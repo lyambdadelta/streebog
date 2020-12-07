@@ -1,23 +1,63 @@
 #include "streebog.h"
 #include <algorithm>
 
+
 class Streebog {
 public:
     // Constructor for streebog class 
     //256 or 512
     Streebog() {}
-    Streebog(int mode_256) {
-        if (mode_256) {
+    void Hash(const int mode256, const unsigned char* message, ull length, unsigned char* res) {
+        // Init section for new calculation
+        if (mode256) {
             for (unsigned char& a : IV) {
                 a = 0x01;
             }
-            is_256 = 1;
         }
         else {
-            Streebog();
+            for (unsigned char& a : IV) {
+                a = 0x00;
+            }
+        }
+        for (int i = 0; i < 64; i++) {
+            N[i] = 0;
+            Sigma[i] = 0;
+            v0[i] = 0;
+            v512[i] = 0;
+        }
+        unsigned char* hash = IV, m[64];
+        // Compress up to length < 512
+        while (length >= 512) {
+            // Take last 512 bit
+            int charshift = (length + 1) / 8 - 64;
+            for (int i = 0; i < 64; i++) {
+                m[i] = message[charshift + i];
+            }
+            g_N(N, hash, m);
+            AddMod512(N, v512, N);
+            AddMod512(Sigma, m, Sigma);
+            length -= 512;
+        }
+    }
+
+    int Test(int is_256) {
+        if (is_256) {
+            // Test function for Streebog-256
+        }
+        else {
+            // Test function for Streebog-512
         }
     }
 private:
+    //check
+    void AddMod512(const unsigned char* a, const unsigned char* b, unsigned char* c) {
+        int t = 0;
+
+        for (int i = 63; i >= 0; i--) {
+            t = a[i] + b[i] + (t >> 8);
+            c[i] = t & 0xFF;
+        }
+    }
 
     void X(const void *a, const void *b, void *c) {
         const ull *lla = (const ull*)a, *llb = (const ull*)b;
@@ -93,8 +133,6 @@ private:
         X(t, h, t);
         X(t, m, h);
     }
-    //TBA
-    void Hash();
 
     //------------------------------------------------------------------------------------------------
     // Data section
@@ -225,13 +263,7 @@ private:
             0xfa,0xf4,0x17,0xd5,0xd9,0xb2,0x1b,0x99,0x48,0xbc,0x92,0x4a,0xf1,0x1b,0xd7,0x20
         }
     };
-    // Initialize Vector
-    // For 256: a[i] = 0x01;
-    // For 512: a[i] = 0x00;
-    int is_256 = 0;
-    unsigned char IV[64] = {};
-    unsigned char N[64] = {};
-    unsigned char Sigma[64] = {};
+    unsigned char IV[64], N[64], Sigma[64], v0[64], v512[64];
 };
 
 int main() {
