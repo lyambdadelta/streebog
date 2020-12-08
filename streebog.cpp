@@ -38,6 +38,26 @@ public:
             AddMod512(Sigma, m, Sigma);
             length -= 512;
         }
+
+        int charshift = 63 - ((len + 1) / 8 - 1;
+        for (int i = 0; i < charshift + 1; i++) {
+            m[i] = 0;
+        }
+        for (int i = 0; i < (len + 1) / 8 - 1; i++) {
+            m[charshift + i] = message[i];
+        }
+        m[63 - len / 8] |= 1 << (len % 7);
+
+        g_N(N, hash, m);
+        v512[63] = len & 0xFF;
+        v512[62] = len >> 8;
+        AddMod512(N, v512, N);
+
+        AddMod512(Sigma, m, Sigma);
+
+        g_N(v0, hash, N);
+        g_N(v0, hash, Sigma);
+        res = hash;
     }
 
     int Test(int is_256) {
@@ -267,5 +287,7 @@ private:
 };
 
 int main() {
-    return 0;
+    unsigned char M[]
+    Streebog streebog();
+    streebog.hash();
 }
