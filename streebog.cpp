@@ -1,14 +1,24 @@
 #include "streebog.h"
+#include <iostream>
+#include <fstream>
 #include <algorithm>
-
+#include <string>
+#include <vector>
+using namespace std;
 
 class Streebog {
 public:
     // Constructor for streebog class 
     //256 or 512
     Streebog() {}
-    void Hash(const int mode256, const unsigned char* message, ull length, unsigned char* res) {
+    void Hash(const int mode256, const vector<unsigned char>& message, ull length, vector<unsigned char>& res) {
         // Init section for new calculation
+        IV.resize(64);
+        N.resize(64); 
+        Sigma.resize(64); 
+        v0.resize(64); 
+        v512.resize(64);
+
         if (mode256) {
             for (unsigned char& a : IV) {
                 a = 0x01;
@@ -20,12 +30,10 @@ public:
             }
         }
         for (int i = 0; i < 64; i++) {
-            N[i] = 0;
-            Sigma[i] = 0;
-            v0[i] = 0;
-            v512[i] = 0;
+            N[i] = Sigma[i] = v0[i] = v512[i] = 0;
         }
-        unsigned char* hash = IV, m[64];
+        vector<unsigned char> hash = IV, m;
+        m.resize(64);
         // Compress up to length < 512
         while (length >= 512) {
             // Take last 512 bit
@@ -39,25 +47,27 @@ public:
             length -= 512;
         }
 
-        int charshift = 63 - ((len + 1) / 8 - 1;
+        int charshift = 63 - ((length + 1) / 8 - 1);
         for (int i = 0; i < charshift + 1; i++) {
             m[i] = 0;
         }
-        for (int i = 0; i < (len + 1) / 8 - 1; i++) {
+        for (int i = 0; i < (length + 1) / 8; i++) {
             m[charshift + i] = message[i];
         }
-        m[63 - len / 8] |= 1 << (len % 7);
+        m[63 - length / 8] |= 1 << (length % 7);
 
         g_N(N, hash, m);
-        v512[63] = len & 0xFF;
-        v512[62] = len >> 8;
+        v512[63] = length & 0xFF;
+        v512[62] = length >> 8;
         AddMod512(N, v512, N);
 
         AddMod512(Sigma, m, Sigma);
 
         g_N(v0, hash, N);
         g_N(v0, hash, Sigma);
-        res = hash;
+        for (int i = 0; i < 64; i++) {
+            res[i] = hash[i];
+        }
     }
 
     int Test(int is_256) {
@@ -65,12 +75,25 @@ public:
             // Test function for Streebog-256
         }
         else {
-            // Test function for Streebog-512
+            vector<unsigned char> res;
+            res.resize(64);
+            vector<unsigned char> mes1 = {
+                0x32, 0x31, 0x30, 0x39, 0x38, 0x37, 0x36, 0x35, 0x34, 0x33,
+                0x32, 0x31, 0x30, 0x39, 0x38, 0x37, 0x36, 0x35, 0x34, 0x33,
+                0x32, 0x31, 0x30, 0x39, 0x38, 0x37, 0x36, 0x35, 0x34, 0x33,
+                0x32, 0x31, 0x30, 0x39, 0x38, 0x37, 0x36, 0x35, 0x34, 0x33,
+                0x32, 0x31, 0x30, 0x39, 0x38, 0x37, 0x36, 0x35, 0x34, 0x33,
+                0x32, 0x31, 0x30, 0x39, 0x38, 0x37, 0x36, 0x35, 0x34, 0x33,
+                0x32, 0x31, 0x30
+            };
+            Hash(0, mes1, 508, res);
+            int a = 0; //bp
         }
+        return 0;
     }
 private:
     //check
-    void AddMod512(const unsigned char* a, const unsigned char* b, unsigned char* c) {
+    void AddMod512(const vector<unsigned char>& a, const vector<unsigned char>& b, vector<unsigned char>& c) {
         int t = 0;
 
         for (int i = 63; i >= 0; i--) {
@@ -79,21 +102,19 @@ private:
         }
     }
 
-    void X(const void *a, const void *b, void *c) {
-        const ull *lla = (const ull*)a, *llb = (const ull*)b;
-        ull* llc = (ull*)c;
-        for (int i = 0; i < 8; i++) {
-            llc[i] = lla[i] ^ llb[i];
+    void X(const vector<unsigned char>& a, const vector<unsigned char>& b, vector<unsigned char>& c) {
+        for (int i = 0; i < 64; i++) {
+            c[i] = a[i] ^ b[i];
         }
     }
 
-    void S(unsigned char *curr) {
+    void S(vector<unsigned char>& curr) {
         for (int i = 0; i < 64; i++) {
             curr[i] = STable[curr[i]];
         }
     }
 
-    void P(unsigned char *curr) {
+    void P(vector<unsigned char>& curr) {
         for (int i = 0; i < 8; i++) {
             for (int j = i + 1; j < 8; j++) {
                 std::swap(curr[i * 8 + j], curr[Tau[i * 8 + j]]);
@@ -101,7 +122,7 @@ private:
         }
     }
 
-    void L(unsigned char* curr) {
+    void L(vector<unsigned char>& curr) {
         for (int i = 0; i < 8; i++) {
             ull tmp = 0;
             for (int j = 0; j < 8; j++) {
@@ -120,14 +141,14 @@ private:
         }
     }
 
-    void KeyCalc(unsigned char* K, int i) {
+    void KeyCalc(vector<unsigned char>& K, int i) {
         X(K, C[i], K);
         S(K);
         P(K);
         L(K);
     }
 
-    void E(unsigned char* K, const unsigned char* m, unsigned char* curr) {
+    void E(vector<unsigned char>& K, const vector<unsigned char>& m, vector<unsigned char>& curr) {
         //memcpy(K,K,64);
         X(K, m, curr);
         for (int i = 0; i < 12; i++) {
@@ -139,8 +160,10 @@ private:
         }
     }
 
-    void g_N(const unsigned char* N, unsigned char* h, const unsigned char* m) {
-        unsigned char t[64], K[64];
+    void g_N(vector<unsigned char>& N, vector<unsigned char>& h, const vector<unsigned char>& m) {
+        vector<unsigned char> t, K;
+        t.resize(64);
+        K.resize(64);
 
         X(N, h, K);
 
@@ -159,7 +182,7 @@ private:
 
     // Matrix S for S - Transformation
     // a[i] = S[a[i]]
-    const unsigned char STable[256] = {
+    const vector<unsigned char> STable = {
         0xFC, 0xEE, 0xDD, 0x11, 0xCF, 0x6E, 0x31, 0x16, 0xFB, 0xC4, 0xFA, 0xDA, 0x23, 0xC5, 0x04, 0x4D,
         0xE9, 0x77, 0xF0, 0xDB, 0x93, 0x2E, 0x99, 0xBA, 0x17, 0x36, 0xF1, 0xBB, 0x14, 0xCD, 0x5F, 0xC1,
         0xF9, 0x18, 0x65, 0x5A, 0xE2, 0x5C, 0xEF, 0x21, 0x81, 0x1C, 0x3C, 0x42, 0x8B, 0x01, 0x8E, 0x4F,
@@ -179,7 +202,7 @@ private:
     };
     // Matrix Tau for P - Transformation
     // a[i] = a[Tau[i]]
-    const unsigned char Tau[64] = {
+    const vector<unsigned char> Tau = {
          0,  8, 16, 24, 32, 40, 48, 56,
          1,  9, 17, 25, 33, 41, 49, 57,
          2, 10, 18, 26, 34, 42, 50, 58,
@@ -190,7 +213,7 @@ private:
          7, 15, 23, 31, 39, 47, 55, 63
     };
     // Matrix A for L - Transformation
-    const ull A[64] = {
+    const vector<ull> A = {
         0x8e20faa72ba0b470, 0x47107ddd9b505a38, 0xad08b0e0c3282d1c, 0xd8045870ef14980e,
         0x6c022c38f90a4c07, 0x3601161cf205268d, 0x1b8e0b0e798c13c8, 0x83478b07b2468764,
         0xa011d380818e8f40, 0x5086e740ce47c920, 0x2843fd2067adea10, 0x14aff010bdd87508,
@@ -209,7 +232,7 @@ private:
         0x07e095624504536c, 0x8d70c431ac02a736, 0xc83862965601dd1b, 0x641c314b2b8ee083
     };
     //Constant values C
-    const unsigned char C[12][64] = {
+    const vector<vector<unsigned char>> C = {
         {
             0xb1,0x08,0x5b,0xda,0x1e,0xca,0xda,0xe9,0xeb,0xcb,0x2f,0x81,0xc0,0x65,0x7c,0x1f,
             0x2f,0x6a,0x76,0x43,0x2e,0x45,0xd0,0x16,0x71,0x4e,0xb8,0x8d,0x75,0x85,0xc4,0xfc,
@@ -283,11 +306,10 @@ private:
             0xfa,0xf4,0x17,0xd5,0xd9,0xb2,0x1b,0x99,0x48,0xbc,0x92,0x4a,0xf1,0x1b,0xd7,0x20
         }
     };
-    unsigned char IV[64], N[64], Sigma[64], v0[64], v512[64];
+    vector<unsigned char> IV, N, Sigma, v0, v512;
 };
 
 int main() {
-    unsigned char M[]
-    Streebog streebog();
-    streebog.hash();
+    Streebog streebog;
+    streebog.Test(0);
 }
