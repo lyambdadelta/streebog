@@ -32,5 +32,6 @@
 *.app
 /.vs
 /Debug
+/Release
 /streebog
 streebog.sln

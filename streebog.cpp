@@ -1,12 +1,10 @@
-#include "streebog.h"
 #include <iostream>
-#include <fstream>
 #include <algorithm>
-#include <string>
 #include <vector>
 #include <utility>
+#include <fstream>
 using namespace std;
-
+typedef unsigned long long ull;
 class Streebog {
 public:
     // Constructor for streebog class 
@@ -359,8 +357,40 @@ private:
     vector<unsigned char> IV, N, Sigma, v0, v512;
 };
 
+ostream& operator<<(ostream& os, vector<unsigned char> message)
+{
+    for (int i = message.size(); i > 0; i--) {
+        os << message[i];
+    }
+    return os;
+}
+
 int main() {
     Streebog streebog;
-    streebog.Test(1, 1, 0);
+    //streebog.Test(1, 1, 0);
+
+    vector<unsigned char> message;
+    ifstream file("../test.txt", ifstream::ate | ifstream::in | ifstream::binary);
+    int size = file.tellg();
+    message.resize(size);
+    file.seekg(ios_base::beg);
+    file.read(reinterpret_cast<char*>(&message[0]), size);
+    file.close();
+
+    vector<unsigned char> res512, res256;
+    res512.resize(64);
+    res256.resize(32);
+
+    streebog.Hash(0, message, size, res512);
+    streebog.Hash(1, message, size, res256);
+    cout << "512: ";
+    for (int i = 0; i < res512.size(); i++) {
+        printf("%x", res512[i]);
+    }
+    cout << "\n256: ";
+    for (int i = 0; i < res256.size(); i++) {
+        printf("%x", res256[i]);
+    }  
+    cout << endl;
     return 0;
 }
